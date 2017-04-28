@@ -918,7 +918,7 @@ static PyObject* pycsp_can_if(PyObject *self, PyObject *args) {
     return PyCapsule_New(&csp_if_can, "csp_iface_t", NULL);
 }
 
-static PyMethodDef pycsp_methods[] = {
+static PyMethodDef methods[] = {
 
     /* csp/csp.h */
     {"csp_init", pycsp_init, METH_VARARGS, ""},
@@ -1024,7 +1024,7 @@ static struct PyModuleDef moduledef = {
     NULL, /* module documentation, may be NULL */
     -1,       /* size of per-interpreter state of the module,
                  or -1 if the module keeps state in global variables. */
-    pycsp_methods
+	methods
 };
 #endif
 
@@ -1039,7 +1039,7 @@ PyMODINIT_FUNC initlibcsp_py2(void) {
 #ifdef IS_PY3
     m = PyModule_Create(&moduledef);
 #else
-    m = Py_InitModule("libcsp_py2", pycsp_methods);
+    m = Py_InitModule("libcsp_py2", methods);
 #endif
     /**
      * csp/csp_types.h
