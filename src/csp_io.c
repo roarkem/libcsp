@@ -247,8 +247,15 @@ int csp_send_direct(csp_id_t idout, csp_packet_t * packet, csp_iface_t * ifout, 
 		goto err;
 	}
 
+    // TODO: force encrypt messages in OBC(1) to Ground(>23) and messages on Ground(28) to Sat(<24) except Radio(5)
+	if( ((idout.dst > 23) && (csp_get_address() == 1)) || ((idout.dst < 24) && (csp_get_address() == 28) && (idout.dst != 5)) ) {
+        idout.flags |= CSP_FXTEA;
+	}
+
+#if 0
 	csp_log_packet("OUT: S %u, D %u, Dp %u, Sp %u, Pr %u, Fl 0x%02X, Sz %u VIA: %s",
 		idout.src, idout.dst, idout.dport, idout.sport, idout.pri, idout.flags, packet->length, ifout->name);
+#endif
 
 	/* Copy identifier to packet (before crc, xtea and hmac) */
 	packet->id.ext = idout.ext;
@@ -292,8 +299,11 @@ int csp_send_direct(csp_id_t idout, csp_packet_t * packet, csp_iface_t * ifout, 
 			idout.flags &= ~(CSP_FCRC32);
 #endif
 		}
+	}
 
-		if (idout.flags & CSP_FXTEA) {
+	// TODO: moved encryption outside check of current node (as OBC will be encryption gateway)
+	// TODO: extra check of OBC and Ground address for simple simulator
+		if ((idout.flags & CSP_FXTEA) && ((csp_get_address()==1) || (csp_get_address()==28))) {
 #ifdef CSP_USE_XTEA
 			/* Create nonce */
 			uint32_t nonce, nonce_n;
@@ -309,6 +319,8 @@ int csp_send_direct(csp_id_t idout, csp_packet_t * packet, csp_iface_t * ifout, 
 				/* Encryption failed */
 				csp_log_warn("Encryption failed! Discarding packet");
 				goto tx_err;
+			} else { // TODO: added trace
+			    csp_log_warn("CSP messages successfully encrypted: S %u, D %u", idout.src, idout.dst);
 			}
 
 			packet->length += sizeof(nonce_n);
@@ -317,7 +329,11 @@ int csp_send_direct(csp_id_t idout, csp_packet_t * packet, csp_iface_t * ifout, 
 			goto tx_err;
 #endif
 		}
-	}
+
+#if 1 // TODO: moved logging to see size after encryption
+    csp_log_packet("OUT: S %u, D %u, Dp %u, Sp %u, Pr %u, Fl 0x%02X, Sz %u VIA: %s",
+        idout.src, idout.dst, idout.dport, idout.sport, idout.pri, idout.flags, packet->length, ifout->name);
+#endif
 
 	/* Store length before passing to interface */
 	uint16_t bytes = packet->length;

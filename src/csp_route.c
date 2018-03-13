@@ -215,6 +215,20 @@ int csp_route_work(uint32_t timeout) {
 			return 0;
 		}
 
+		// TODO: use OBC as decrypt gateway
+		// TODO: using csp_route_security_check is a bit of a hack, as it does more than decrypt
+		if((packet->id.src > 23) && (csp_get_address() == 1)) {
+		    if (csp_route_security_check(CSP_SO_NONE, input.interface, packet) < 0) {
+		        csp_buffer_free(packet);
+		        return 0;
+		    }
+		    else if(packet->id.flags & CSP_FXTEA) {
+		        packet->id.flags &= ~CSP_FXTEA;
+		        csp_log_warn("CSP message successfully decrypted: S %u, D %u", packet->id.src, packet->id.dst);
+		    }
+
+		}
+
 		/* Otherwise, actually send the message */
 		if (csp_send_direct(packet->id, packet, dstif, 0) != CSP_ERR_NONE) {
 			csp_log_warn("Router failed to send");
