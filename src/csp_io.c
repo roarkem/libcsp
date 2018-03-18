@@ -37,8 +37,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #include <csp/arch/csp_time.h>
 #include <csp/arch/csp_malloc.h>
 
-#include "crypto/csp_hmac.h"
-#include "crypto/csp_xtea.h"
+#include <csp/crypto/csp_hmac.h>
+#include <csp/crypto/csp_xtea.h>
 
 #include "csp_io.h"
 #include "csp_port.h"
@@ -178,8 +178,10 @@ csp_socket_t * csp_socket(uint32_t opts) {
 	 * if not, the user must init the queue using csp_listen */
 	if (opts & CSP_SO_CONN_LESS) {
 		sock->socket = csp_queue_create(CSP_CONN_QUEUE_LENGTH, sizeof(csp_packet_t *));
-		if (sock->socket == NULL)
+		if (sock->socket == NULL) {
+			csp_close(sock);
 			return NULL;
+                }
 	} else {
 		sock->socket = NULL;
 	}

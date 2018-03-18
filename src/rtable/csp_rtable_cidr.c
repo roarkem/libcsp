@@ -101,7 +101,7 @@ void csp_rtable_clear(void) {
 
 }
 
-static int csp_rtable_parse(char * buffer, int dry_run) {
+static int csp_rtable_parse(const char * buffer, int dry_run) {
 
 	int valid_entries = 0;
 
@@ -114,7 +114,7 @@ static int csp_rtable_parse(char * buffer, int dry_run) {
 
 	while ((str) && (strlen(str) > 1)) {
 		int address = 0, netmask = 0, mac = 255;
-		char name[100] = {};
+		char name[10] = {};
 		if (sscanf(str, "%u/%u %s %u", &address, &netmask, name, &mac) != 4) {
 			if (sscanf(str, "%u/%u %s", &address, &netmask, name) != 3) {
 				csp_log_error("Parse error %s", str);
@@ -137,11 +137,11 @@ static int csp_rtable_parse(char * buffer, int dry_run) {
 	return valid_entries;
 }
 
-void csp_rtable_load(char * buffer) {
+void csp_rtable_load(const char * buffer) {
 	csp_rtable_parse(buffer, 0);
 }
 
-int csp_rtable_check(char * buffer) {
+int csp_rtable_check(const char * buffer) {
 	return csp_rtable_parse(buffer, 1);
 }
 
@@ -218,6 +218,7 @@ int csp_rtable_set(uint8_t _address, uint8_t _netmask, csp_iface_t *ifc, uint8_t
 	return CSP_ERR_NONE;
 }
 
+#ifdef CSP_DEBUG
 void csp_rtable_print(void) {
 
 	for (csp_rtable_t * i = rtable; (i); i = i->next) {
@@ -229,4 +230,4 @@ void csp_rtable_print(void) {
 	}
 
 }
-
+#endif

@@ -56,7 +56,7 @@ void * fifo_rx(void * parameters) {
     csp_packet_t *buf = csp_buffer_get(BUF_SIZE);
     /* Wait for packet on fifo */
     while (read(rx_channel, &buf->length, BUF_SIZE) > 0) {
-        csp_new_packet(buf, &csp_if_fifo, NULL);
+        csp_qfifo_write(buf, &csp_if_fifo, NULL);
         buf = csp_buffer_get(BUF_SIZE);
     }
 
@@ -66,7 +66,9 @@ void * fifo_rx(void * parameters) {
 int main(int argc, char **argv) {
 
     int me, other, type;
-    const char *message = "Testing CSP", *rx_channel_name, *tx_channel_name;
+    const char *message = "Testing CSP";
+    const char *rx_channel_name;
+    const char *tx_channel_name;
     csp_socket_t *sock;
     csp_conn_t *conn;
     csp_packet_t *packet;
