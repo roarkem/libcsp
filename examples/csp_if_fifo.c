@@ -97,8 +97,15 @@ int main(int argc, char **argv) {
         return -1;
     }
 
-    /* Init CSP and CSP buffer system */
-    if (csp_init(me) != CSP_ERR_NONE || csp_buffer_init(10, 300) != CSP_ERR_NONE) {
+    /* Init CSP */
+    if (csp_buffer_init(10, 300) != CSP_ERR_NONE) {
+        printf("Failed to init CSP buffers\r\n");
+        return -1;
+    }
+    csp_conf_t csp_conf;
+    csp_conf_get_defaults(&csp_conf);
+    csp_conf.address = me;
+    if (csp_init(&csp_conf) != CSP_ERR_NONE) {
         printf("Failed to init CSP\r\n");
         return -1;
     }

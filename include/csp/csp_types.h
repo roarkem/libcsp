@@ -44,10 +44,10 @@ enum csp_reserved_ports_e {
 	CSP_PS				= 2,
 	CSP_MEMFREE			= 3,
 	CSP_REBOOT			= 4,
-	CSP_BUF_FREE			= 5,
+	CSP_BUF_FREE		= 5,
 	CSP_UPTIME			= 6,
-	CSP_ANY				= (CSP_MAX_BIND_PORT + 1),
-	CSP_PROMISC			= (CSP_MAX_BIND_PORT + 2)
+	CSP_ANY				= 254,
+	CSP_PROMISC			= 255,
 };
 
 typedef enum {
@@ -60,11 +60,9 @@ typedef enum {
 #define CSP_PRIORITIES			(1 << CSP_ID_PRIO_SIZE)
 
 #ifdef CSP_USE_QOS
-#define CSP_RX_QUEUE_LENGTH		(CSP_CONN_QUEUE_LENGTH / CSP_PRIORITIES)
 #define CSP_ROUTE_FIFOS			CSP_PRIORITIES
 #define CSP_RX_QUEUES			CSP_PRIORITIES
 #else
-#define CSP_RX_QUEUE_LENGTH		CSP_CONN_QUEUE_LENGTH
 #define CSP_ROUTE_FIFOS			1
 #define CSP_RX_QUEUES			1
 #endif
@@ -165,6 +163,8 @@ typedef union {
 #define CSP_O_NOXTEA			CSP_SO_XTEAPROHIB // Disable XTEA
 #define CSP_O_CRC32			CSP_SO_CRC32REQ // Enable CRC32
 #define CSP_O_NOCRC32			CSP_SO_CRC32PROHIB // Disable CRC32
+
+#define CSP_PADDING_BYTES		8
 
 /**
  * CSP PACKET STRUCTURE

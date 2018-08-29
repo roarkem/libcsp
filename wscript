@@ -51,7 +51,7 @@ def options(ctx):
     gr.add_option('--enable-examples', action='store_true', help='Enable examples')
     gr.add_option('--enable-dedup', action='store_true', help='Enable packet deduplicator')
 
-    # Interfaces    
+    # Interfaces
     gr.add_option('--enable-if-i2c', action='store_true', help='Enable I2C interface')
     gr.add_option('--enable-if-kiss', action='store_true', help='Enable KISS/RS.232 interface')
     gr.add_option('--enable-if-can', action='store_true', help='Enable CAN interface')
@@ -61,21 +61,13 @@ def options(ctx):
     gr.add_option('--enable-can-socketcan', action='store_true', help='Enable Linux socketcan driver')
     gr.add_option('--with-driver-usart', default=None, metavar='DRIVER', help='Build USART driver. [windows, linux, None]')
 
-    # OS    
+    # OS
     gr.add_option('--with-os', metavar='OS', default='posix', help='Set operating system. Must be either \'posix\', \'macosx\', \'windows\' or \'freertos\'')
     gr.add_option('--enable-init-shutdown', action='store_true', help='Use init system commands for shutdown/reboot')
 
     # Options
-    gr.add_option('--with-rdp-max-window', metavar='SIZE', type=int, default=20, help='Set maximum window size for RDP')
-    gr.add_option('--with-max-bind-port', metavar='PORT', type=int, default=31, help='Set maximum bindable port')
-    gr.add_option('--with-max-connections', metavar='COUNT', type=int, default=10, help='Set maximum number of concurrent connections')
-    gr.add_option('--with-conn-queue-length', metavar='SIZE', type=int, default=100, help='Set maximum number of packets in queue for a connection')
-    gr.add_option('--with-router-queue-length', metavar='SIZE', type=int, default=10, help='Set maximum number of packets to be queued at the input of the router')
-    gr.add_option('--with-padding', metavar='BYTES', type=int, default=8, help='Set padding bytes before packet length field')
     gr.add_option('--with-loglevel', metavar='LEVEL', default='debug', help='Set minimum compile time log level. Must be one of \'error\', \'warn\', \'info\' or \'debug\'')
     gr.add_option('--with-rtable', metavar='TABLE', default='static', help='Set routing table type')
-    gr.add_option('--with-connection-so', metavar='CSP_SO', type=int, default='0x0000', help='Set outgoing connection socket options, see csp.h for valid values')
-    gr.add_option('--with-bufalign', metavar='BYTES', type=int, help='Set buffer alignment')
 
 def configure(ctx):
     # Validate OS
@@ -206,16 +198,6 @@ def configure(ctx):
     ctx.define_cond('CSP_USE_QOS', ctx.options.enable_qos)
     ctx.define_cond('CSP_USE_DEDUP', ctx.options.enable_dedup)
     ctx.define_cond('CSP_USE_INIT_SHUTDOWN', ctx.options.enable_init_shutdown)
-    ctx.define('CSP_CONN_MAX', ctx.options.with_max_connections)
-    ctx.define('CSP_CONN_QUEUE_LENGTH', ctx.options.with_conn_queue_length)
-    ctx.define('CSP_FIFO_INPUT', ctx.options.with_router_queue_length)
-    ctx.define('CSP_MAX_BIND_PORT', ctx.options.with_max_bind_port)
-    ctx.define('CSP_RDP_MAX_WINDOW', ctx.options.with_rdp_max_window)
-    ctx.define('CSP_PADDING_BYTES', ctx.options.with_padding)
-    ctx.define('CSP_CONNECTION_SO', ctx.options.with_connection_so)
-    
-    if ctx.options.with_bufalign != None:
-        ctx.define('CSP_BUFFER_ALIGN', ctx.options.with_bufalign)
 
     # Set logging level
     ctx.define_cond('CSP_LOG_LEVEL_DEBUG', ctx.options.with_loglevel in ('debug'))

@@ -39,67 +39,66 @@ extern "C" {
 #include "csp_rtable.h"
 #include "csp_iflist.h"
 
-/** csp_init
- * Start up the can-space protocol
- * @param my_node_address The CSP node address
+/**
+ * CSP configuration.
+ * @see csp_init()
  */
-int csp_init(uint8_t my_node_address);
+typedef struct csp_conf_s {
 
-/** csp_set_address
- * Set the systems own address
- * @param addr The new address of the system
+	uint8_t address;		/**< CSP address of the system */
+
+	const char *hostname;		/**< Host name, returned by the #CSP_CMP_IDENT request */
+	const char *model;		/**< Model, returned by the #CSP_CMP_IDENT request */
+	const char *revision;		/**< Revision, returned by the #CSP_CMP_IDENT request */
+
+	uint8_t conn_max;		/**< Max number of connections. A fixed connection array is allocated by csp_init() */
+	uint8_t conn_queue_length;	/**< Max queue length (max queued Rx messages). */
+	uint8_t conn_dfl_so;		/**< Default/minimum connection options. Options will always be or'ed onto new connections, see csp_connect() */
+	uint8_t fifo_length;		/**< Length of incoming message queue, used for handover to router task. */
+	uint8_t port_max_bind;		/**< Max/highest port for use with csp_bind() */
+	uint8_t rdp_max_window;		/**< Max/highest port for use with csp_bind() */
+
+} csp_conf_t;
+
+/**
+ * Get default CSP configuration.
  */
-void csp_set_address(uint8_t addr);
+static inline void csp_conf_get_defaults(csp_conf_t * conf) {
+	conf->address = 1;
+	conf->hostname = "hostname";
+	conf->model = "model";
+	conf->revision = "resvision";
+	conf->conn_max = 10;
+	conf->conn_queue_length = 10;
+	conf->conn_dfl_so = CSP_O_NONE;
+	conf->fifo_length = 25;
+	conf->port_max_bind = 24;
+	conf->rdp_max_window = 20;
+}
 
-/** csp_get_address
- * Get the systems own address
+/**
+ * Initialize CSP.
+ * This will configure/allocate basic structures.
+ * @param[in] conf configuration. A shallow copy will be done of the configuration, i.e. only copy references to strings/structers.
+ */
+int csp_init(const csp_conf_t * conf);
+
+/**
+ * Get a \a read-only reference to the active CSP configuration.
+ * @return Active CSP configuration (read-only).
+ */
+const csp_conf_t * csp_get_conf(void);
+
+/**
+ * Get the systems own address.
  * @return The current address of the system
  */
 uint8_t csp_get_address(void);
 
-/** csp_set_hostname
- * Set subsystem hostname.
- * This function takes a pointer to a string, which should remain static
- * @param hostname Hostname to set
- */
-void csp_set_hostname(const char *hostname);
-
-/** csp_get_hostname
- * Get current subsystem hostname.
- * @return Pointer to char array with current hostname.
- */
-const char *csp_get_hostname(void);
-
-/** csp_set_model
- * Set subsystem model name.
- * This function takes a pointer to a string, which should remain static
- * @param model Model name to set
- */
-void csp_set_model(const char *model);
-
-/** csp_get_model
- * Get current model name.
- * @return Pointer to char array with current model name.
- */
-const char *csp_get_model(void);
-
-/** csp_set_revision
- * Set subsystem revision. This can be used to override the CMP revision field.
- * This function takes a pointer to a string, which should remain static
- * @param revision Revision name to set
- */
-void csp_set_revision(const char *revision);
-
-/** csp_get_revision
- * Get subsystem revision.
- * @return Pointer to char array with software revision.
- */
-const char *csp_get_revision(void);
-
-/** csp_socket
- * Create CSP socket endpoint
- * @param opts Socket options
- * @return Pointer to socket on success, NULL on failure
+/**
+ * Create a CSP socket endpoint.
+ * @param[in] opts Socket options
+ * @return Pointer to a socket on success, NULL on failure
  */
 csp_socket_t *csp_socket(uint32_t opts);
 
@@ -158,9 +157,10 @@ int csp_send_prio(uint8_t prio, csp_conn_t *conn, csp_packet_t *packet, uint32_t
  * @param outlen length of request to send
  * @param inbuf pointer to incoming data buffer
  * @param inlen length of expected reply, -1 for unknown size (note inbuf MUST be large enough)
+ * @param opts Connection options.
  * @return Return 1 or reply size if successful, 0 if error or incoming length does not match or -1 if timeout was reached
  */
-int csp_transaction(uint8_t prio, uint8_t dest, uint8_t port, uint32_t timeout, void *outbuf, int outlen, void *inbuf, int inlen);
+int csp_transaction2(uint8_t prio, uint8_t dest, uint8_t port, uint32_t timeout, void *outbuf, int outlen, void *inbuf, int inlen, uint32_t opts);
 
 /**
  * Perform an entire request/reply transaction
@@ -174,10 +174,11 @@ int csp_transaction(uint8_t prio, uint8_t dest, uint8_t port, uint32_t timeout, 
  * @param outlen length of request to send
  * @param inbuf pointer to incoming data buffer
  * @param inlen length of expected reply, -1 for unknown size (note inbuf MUST be large enough)
- * @param opts Connection options.
  * @return Return 1 or reply size if successful, 0 if error or incoming length does not match or -1 if timeout was reached
  */
-int csp_transaction2(uint8_t prio, uint8_t dest, uint8_t port, uint32_t timeout, void *outbuf, int outlen, void *inbuf, int inlen, uint32_t opts);
+static inline int csp_transaction(uint8_t prio, uint8_t dest, uint8_t port, uint32_t timeout, void * outbuf, int outlen, void * inbuf, int inlen) {
+	return csp_transaction2(prio, dest, port, timeout, outbuf, outlen, inbuf, inlen, 0);
+}
 
 /**
  * Use an existing connection to perform a transaction,
@@ -279,10 +280,10 @@ int csp_conn_flags(csp_conn_t *conn);
 /**
  * Set socket to listen for incoming connections
  * @param socket Socket to enable listening on
- * @param conn_queue_length Lenght of backlog connection queue
+ * @param backlog Lenght of backlog connection queue. Queue holds incoming connections and returned by csp_accept().
  * @return 0 on success, -1 on error.
  */
-int csp_listen(csp_socket_t *socket, size_t conn_queue_length);
+int csp_listen(csp_socket_t *socket, size_t backlog);
 
 /**
  * Bind port to socket

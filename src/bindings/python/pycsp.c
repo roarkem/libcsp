@@ -58,71 +58,41 @@ static PyObject* pycsp_service_handler(PyObject *self, PyObject *args) {
  */
 static PyObject* pycsp_init(PyObject *self, PyObject *args) {
     uint8_t my_node_address;
-    if (!PyArg_ParseTuple(args, "b", &my_node_address)) {
-        return NULL; // TypeError is thrown
-    }
-
-    return Py_BuildValue("i", csp_init(my_node_address));
-}
-
-/*
- * void csp_set_hostname(const char *hostname);
- */
-static PyObject* pycsp_set_hostname(PyObject *self, PyObject *args) {
     char* hostname;
-    if (!PyArg_ParseTuple(args, "s", &hostname)) {
+    char* model;
+    char* revision;
+    if (!PyArg_ParseTuple(args, "bsss", &my_node_address, &hostname, &model, &revision)) {
         return NULL; // TypeError is thrown
     }
 
-    csp_set_hostname(hostname);
-    Py_RETURN_NONE;
+    csp_conf_t conf;
+    csp_conf_get_defaults(&conf);
+    conf.hostname = hostname;
+    conf.model = model;
+    conf.revision = revision;
+
+    return Py_BuildValue("i", csp_init(&conf));
 }
 
 /*
  * const char *csp_get_hostname(void);
  */
 static PyObject* pycsp_get_hostname(PyObject *self, PyObject *args) {
-    return Py_BuildValue("s", csp_get_hostname());
-}
-
-/*
- * void csp_set_model(const char *model);
- */
-static PyObject* pycsp_set_model(PyObject *self, PyObject *args) {
-    char* model;
-    if (!PyArg_ParseTuple(args, "s", &model)) {
-        return NULL; // TypeError is thrown
-    }
-
-    csp_set_model(model);
-    Py_RETURN_NONE;
+    return Py_BuildValue("s", csp_get_conf()->hostname);
 }
 
 /*
  * const char *csp_get_model(void);
  */
 static PyObject* pycsp_get_model(PyObject *self, PyObject *args) {
-    return Py_BuildValue("s", csp_get_model());
-}
-
-/*
- * void csp_set_revision(const char *revision);
- */
-static PyObject* pycsp_set_revision(PyObject *self, PyObject *args) {
-    char* revision;
-    if (!PyArg_ParseTuple(args, "s", &revision)) {
-        return NULL; // TypeError is thrown
-    }
-
-    csp_set_revision(revision);
-    Py_RETURN_NONE;
+    return Py_BuildValue("s", csp_get_conf()->model);
 }
 
 /*
  * const char *csp_get_revision(void);
  */
 static PyObject* pycsp_get_revision(PyObject *self, PyObject *args) {
-    return Py_BuildValue("s", csp_get_revision());
+    return Py_BuildValue("s", csp_get_conf()->revision);
 }
 
 /*
@@ -873,11 +843,8 @@ static PyMethodDef methods[] = {
     /* csp/csp.h */
     {"service_handler", pycsp_service_handler, METH_VARARGS, ""},
     {"init", pycsp_init, METH_VARARGS, ""},
-    {"set_hostname", pycsp_set_hostname, METH_VARARGS, ""},
     {"get_hostname", pycsp_get_hostname, METH_NOARGS, ""},
-    {"set_model", pycsp_set_model, METH_VARARGS, ""},
     {"get_model", pycsp_get_model, METH_NOARGS, ""},
-    {"set_revision", pycsp_set_revision, METH_VARARGS, ""},
     {"get_revision", pycsp_get_revision, METH_NOARGS, ""},
     {"socket", pycsp_socket, METH_VARARGS, ""},
     {"accept", pycsp_accept, METH_VARARGS, ""},
@@ -977,8 +944,8 @@ PyMODINIT_FUNC PyInit_libcsp_py3(void) {
         PyModule_AddIntConstant(m, "CSP_REBOOT", CSP_REBOOT);
         PyModule_AddIntConstant(m, "CSP_BUF_FREE", CSP_BUF_FREE);
         PyModule_AddIntConstant(m, "CSP_UPTIME", CSP_UPTIME);
-        PyModule_AddIntConstant(m, "CSP_ANY", CSP_MAX_BIND_PORT + 1);
-        PyModule_AddIntConstant(m, "CSP_PROMISC", CSP_MAX_BIND_PORT + 2);
+        PyModule_AddIntConstant(m, "CSP_ANY", CSP_ANY);
+        PyModule_AddIntConstant(m, "CSP_PROMISC", CSP_PROMISC);
 
         /* PRIORITIES */
         PyModule_AddIntConstant(m, "CSP_PRIO_CRITICAL", CSP_PRIO_CRITICAL);

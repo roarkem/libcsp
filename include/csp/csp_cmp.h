@@ -56,7 +56,7 @@ extern "C" {
    CMP request codes.
 */
 /**
-   Request identification, compile time, revision, name.
+   Request identification, compile time, revision, hostname and model.
 */
 #define CSP_CMP_IDENT 1
 /**
