@@ -1,10 +1,10 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
 # libcsp must be build with at least these options to run this example server:
-# ./waf distclean configure build --enable-bindings --enable-crc32 --enable-rdp --enable-if-zmq --with-driver-usart=linux --enable-if-kiss --enable-xtea --enable-if-can --enable-can-socketcan --enable-hmac --enable-examples
+# ./waf distclean configure build --enable-bindings --enable-python3-bindings --enable-crc32 --enable-rdp --enable-if-zmq --with-driver-usart=linux --enable-if-kiss --enable-xtea --enable-if-can --enable-can-socketcan --enable-hmac --enable-examples
 
 # Can be run from root of libcsp like this:
-# LD_LIBRARY_PATH=build PYTHONPATH=bindings/python:build python examples/python_bindings_example_server.py
+# LD_LIBRARY_PATH=build PYTHONPATH=bindings/python:build python3 examples/python_bindings_example_server.py
 #
 
 import os
@@ -12,34 +12,23 @@ import time
 import sys
 import libcsp as csp
 import subprocess
+import signal
+import threading
 
-if __name__ == "__main__":
 
-    # start a zmqproxy to transport messages to and from the client
-    zmqp = subprocess.Popen('build/zmqproxy')
+STOP_SERVER = threading.Event()
 
-    # init csp
-    csp.buffer_init(10, 300)
-    csp.init(27)
-    csp.zmqhub_init(27, "localhost")
-    csp.rtable_set(28, 5, "ZMQHUB")
-    csp.route_start_task()
+def sigint_handler(signal, frame):
+    print("SIGINT received, stopping...")
+    STOP_SERVER.set()
 
-    # set identity
-    csp.set_hostname("test_service")
-    csp.set_model("bindings")
-    csp.set_revision("1.2.3")
 
-    # and read it back
-    print (csp.get_hostname())
-    print (csp.get_model())
-    print (csp.get_revision())
-
+def csp_server():
     # start listening for packets...
     sock = csp.socket()
     csp.bind(sock, csp.CSP_ANY)
     csp.listen(sock)
-    while True:
+    while not STOP_SERVER.is_set():
         conn = csp.accept(sock)
         if not conn:
             continue
@@ -70,3 +59,34 @@ if __name__ == "__main__":
                 csp.service_handler(conn, packet)
         csp.close(conn)
 
+
+if __name__ == "__main__":
+
+    # start a zmqproxy to transport messages to and from the client
+    zmqp = subprocess.Popen('build/zmqproxy')
+
+    # init csp
+    csp.buffer_init(10, 300)
+    csp.init(27)
+    csp.zmqhub_init(27, "localhost")
+    csp.rtable_set(28, 5, "ZMQHUB")
+    csp.route_start_task()
+
+    # set identity
+    csp.set_hostname("test_service")
+    csp.set_model("bindings")
+    csp.set_revision("1.2.3")
+
+    # and read it back
+    print (csp.get_hostname())
+    print (csp.get_model())
+    print (csp.get_revision())
+
+    # handle ctrl-c
+    # warning: does not work with python2, see https://stackoverflow.com/questions/25676835/signal-handling-in-multi-threaded-python
+    signal.signal(signal.SIGINT, sigint_handler)
+
+    # start CSP server thread
+    thread = threading.Thread(target=csp_server)
+    thread.start()
+    thread.join()  # terminate program when server stopped
