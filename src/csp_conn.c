@@ -161,10 +161,10 @@ csp_conn_t * csp_conn_find(uint32_t id, uint32_t mask) {
 	/* Search for matching connection */
 	int i;
 	csp_conn_t * conn;
-
+	id = (id & mask);
 	for (i = 0; i < CSP_CONN_MAX; i++) {
 		conn = &arr_conn[i];
-		if ((conn->state != CONN_CLOSED) && (conn->type == CONN_CLIENT) && (conn->idin.ext & mask) == (id & mask))
+		if ((conn->state != CONN_CLOSED) && (conn->type == CONN_CLIENT) && ((conn->idin.ext & mask) == id))
 			return conn;
 	}
 	
@@ -367,39 +367,39 @@ csp_conn_t * csp_connect(uint8_t prio, uint8_t dest, uint8_t dport, uint32_t tim
 		return NULL;
 #endif
 	}
-	
+
 	/* Find an unused ephemeral port */
 	csp_conn_t * conn;
 
-	/* Wait for sport lock */
+	/* Wait for sport lock - note that csp_conn_new(..) is called inside the lock! */
 	if (csp_bin_sem_wait(&sport_lock, 1000) != CSP_SEMAPHORE_OK)
 		return NULL;
 
-	uint8_t start = sport;
+	const uint8_t start = sport;
 	while (++sport != start) {
 		if (sport > CSP_ID_PORT_MAX)
 			sport = CSP_MAX_BIND_PORT + 1;
 
 		outgoing_id.sport = sport;
 		incoming_id.dport = sport;
-		
-		/* Match on destination port of _incoming_ identifier */
-		conn = csp_conn_find(incoming_id.ext, CSP_ID_DPORT_MASK);
 
-		/* Break if we found an unused ephemeral port */
-		if (conn == NULL)
+		/* Match on destination port of _incoming_ identifier */
+		if (csp_conn_find(incoming_id.ext, CSP_ID_DPORT_MASK) == NULL) {
+			/* Break - we found an unused ephemeral port */
 			break;
+		}
+	}
+
+	/* If available ephemeral port was found, allocate connection */
+	if (sport != start) {
+		conn = csp_conn_new(incoming_id, outgoing_id);
+	} else {
+		conn = NULL;
 	}
 
 	/* Post sport lock */
 	csp_bin_sem_post(&sport_lock);
 
-	/* If no available ephemeral port was found */
-	if (sport == start)
-		return NULL;
-
-	/* Get storage for new connection */
-	conn = csp_conn_new(incoming_id, outgoing_id);
 	if (conn == NULL)
 		return NULL;
 
