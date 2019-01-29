@@ -495,7 +495,7 @@ void csp_rdp_check_timeouts(csp_conn_t * conn) {
 		if (csp_rdp_time_after(time_now, conn->timestamp + conn->rdp.conn_timeout)) {
 			csp_log_warn("RDP %p: Found a lost connection (now: %u, ts: %u, to: %u), closing now",
                                      conn, time_now, conn->timestamp, conn->rdp.conn_timeout);
-			csp_close(conn);
+			csp_conn_close(conn, CSP_RDP_CLOSE_SOURCE_PROTOCOL);
 			return;
 		}
 	}
@@ -506,8 +506,8 @@ void csp_rdp_check_timeouts(csp_conn_t * conn) {
 	 */
 	if (conn->rdp.state == RDP_CLOSE_WAIT) {
 		if (csp_rdp_time_after(time_now, conn->timestamp + conn->rdp.conn_timeout)) {
-			csp_log_protocol("RDP %p: CLOSE_WAIT timeout", conn);
-			csp_close(conn);
+			csp_log_protocol("RDP %p: CLOSE_WAIT timeout, closing now", conn);
+			csp_conn_close(conn, CSP_RDP_CLOSE_SOURCE_PROTOCOL);
 		}
 		return;
 	}
@@ -594,23 +594,29 @@ void csp_rdp_new_packet(csp_conn_t * conn, csp_packet_t * packet) {
 			conn->rdp.snd_una = rx_header->ack_nr + 1;
 		}
 
-		if (conn->rdp.state == RDP_CLOSE_WAIT || conn->rdp.state == RDP_CLOSED) {
-			csp_log_protocol("RDP %p: RST received in CLOSE_WAIT or CLOSED. Now closing connection", conn);
-			goto discard_close;
-		} else {
-			csp_log_protocol("RDP %p: Got RESET in state %u", conn, conn->rdp.state);
+		if (conn->rdp.state == RDP_CLOSED) {
+			csp_log_protocol("RDP %p: RST received in CLOSED - ignoring", conn);
+                        // TODO shouldn't we send back a RST?
+			goto discard_open;
+                }
 
-			if (rx_header->seq_nr == (uint16_t)(conn->rdp.rcv_cur + 1)) {
-				csp_log_protocol("RDP %p: RESET in sequence, no more data incoming, reply with RESET", conn);
-				conn->rdp.state = RDP_CLOSE_WAIT;
-				conn->timestamp = csp_get_ms();
-				csp_rdp_send_cmp(conn, NULL, RDP_ACK | RDP_RST, conn->rdp.snd_nxt, conn->rdp.rcv_cur);
-				goto discard_close;
-			} else {
-				csp_log_protocol("RDP %p: RESET out of sequence, keep connection open", conn);
-				goto discard_open;
-			}
+		if (conn->rdp.state == RDP_CLOSE_WAIT) {
+			csp_log_protocol("RDP %p: RST received in CLOSE_WAIT. Now closing connection", conn);
+			goto discard_close;
 		}
+
+		csp_log_protocol("RDP %p: Got RESET in state %u", conn, conn->rdp.state);
+
+		if (rx_header->seq_nr == (uint16_t)(conn->rdp.rcv_cur + 1)) {
+			csp_log_protocol("RDP %p: RESET in sequence, no more data incoming, reply with RESET", conn);
+			conn->rdp.state = RDP_CLOSE_WAIT;
+			conn->timestamp = csp_get_ms();
+			csp_rdp_send_cmp(conn, NULL, RDP_ACK | RDP_RST, conn->rdp.snd_nxt, conn->rdp.rcv_cur);
+			goto discard_close;
+		}
+
+                csp_log_protocol("RDP %p: RESET out of sequence, keep connection open", conn);
+		goto discard_open;
 	}
 
 	/* The BIG FAT switch (state-machine) */
@@ -860,10 +866,14 @@ discard_close:
 	/* If user-space has received the connection handle, wake it up,
 	 * by sending a NULL pointer, user-space should close connection */
 	if (conn->socket == NULL) {
-		csp_log_protocol("RDP %p: Waiting for userspace to close", conn);
+		csp_log_protocol("RDP %p: Signal userspace to close", conn);
+		csp_conn_close(conn, CSP_RDP_CLOSE_SOURCE_PROTOCOL);
 		csp_conn_enqueue_packet(conn, NULL);
 	} else {
-		csp_close(conn);
+            /* New connection, userspace doesn't know anything about it yet - so it can be completely close */
+            // TODO consider: close protocol should probably only be added in "fast re-use" and possibly
+            csp_log_protocol("RDP %p: closing now", conn);
+		csp_conn_close(conn, CSP_RDP_CLOSE_SOURCE_USERSPACE | CSP_RDP_CLOSE_SOURCE_PROTOCOL);
 	}
 
 discard_open:
@@ -1031,23 +1041,34 @@ int csp_rdp_allocate(csp_conn_t * conn) {
  * @note This function may only be called from csp_close, and is therefore
  * without any checks for null pointers.
  */
-int csp_rdp_close(csp_conn_t * conn) {
+int csp_rdp_close(csp_conn_t * conn, uint8_t close_source) {
 
 	if (conn->rdp.state == RDP_CLOSED)
 		return CSP_ERR_NONE;
 
-	/* If message is open, send reset */
+        conn->rdp.close_sources |= close_source;
+
+	/* If connection is open, send reset */
 	if (conn->rdp.state != RDP_CLOSE_WAIT) {
 		conn->rdp.state = RDP_CLOSE_WAIT;
 		conn->timestamp = csp_get_ms();
 		csp_rdp_send_cmp(conn, NULL, RDP_ACK | RDP_RST, conn->rdp.snd_nxt, conn->rdp.rcv_cur);
-		csp_log_protocol("RDP %p: Close, sent RST", conn);
+		csp_log_protocol("RDP %p: csp_rdp_close(0x%x) in %d, sent RST -> CLOSE_WAIT", conn, close_source, conn->rdp.state);
 		csp_bin_sem_post(&conn->rdp.tx_wait); // wake up any pendng Tx
-		return CSP_ERR_AGAIN;
+		//return CSP_ERR_AGAIN;
 	}
+        if ((conn->rdp.close_sources & CSP_RDP_CLOSE_SOURCE_USERSPACE) == 0) {
+            csp_log_protocol("RDP %p: csp_rdp_close(0x%x), waiting for userspace to close", conn, close_source);
+            return CSP_ERR_AGAIN;
+        }
+        if ((conn->rdp.close_sources & CSP_RDP_CLOSE_SOURCE_PROTOCOL) == 0) {
+            csp_log_protocol("RDP %p: csp_rdp_close(0x%x), waiting for protocol to close/timeout", conn, close_source);
+            return CSP_ERR_AGAIN;
+        }
 
-	csp_log_protocol("RDP %p: Close in CLOSE_WAIT, now closing", conn);
+        csp_log_protocol("RDP %p: csp_rdp_close(0x%x) -> CLOSED", conn, close_source);
 	conn->rdp.state = RDP_CLOSED;
+        conn->rdp.close_sources = 0;
 	return CSP_ERR_NONE;
 
 }
